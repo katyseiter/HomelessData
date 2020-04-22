@@ -1,0 +1,107 @@
+---
+title: "Homeless Children Map April 21, 2020"
+author: "Katy Seiter"
+date: "4/21/2020"
+output: 
+  html_document:
+      toc: true
+      toc_float: true
+      toc_depth: 4
+---
+ 
+## Reporting on Homelessness: Data Analysis for Journalists   
+
+#### Jour 405v, Jour 5003, Spring 2020    
+
+--------------------------------------------------------------------
+# Part 1: Homeless Children Data
+Load tidyverse, janitor, lubidate
+```{r include=FALSE}
+
+library(rio)
+library(tidyverse)
+library(janitor)
+library(lubridate)
+```
+Load 2009-2010 Data
+```{r include=FALSE}
+AR2009_10 <- rio::import("https://github.com/profrobwells/HomelessSP2020/blob/master/Data/Homeless_Children/2009-2010-demographics-data-for-districts.xlsx?raw=true", which = "Data", skip=8)
+```
+Clean up column names so they are R friendly
+```{r}
+AR2009_10 <- janitor::clean_names(AR2009_10)
+```
+Create 2009-2010 table with only relevant columns
+```{r}
+table2009 <- AR2009_10 %>%
+  select(district_name, district_percent_homeless, district_lea) %>%
+  arrange(desc(district_percent_homeless))
+```
+Rename column
+```{r}
+colnames(table2009)[2] <- "Pct_Homeless_2009"
+```
+Load 2018-2019 Data
+```{r}
+AR2018_19 <- rio::import("https://github.com/profrobwells/HomelessSP2020/blob/master/Data/Homeless_Children/2018-2019-demographic-data-for-districts.xlsx?raw=true", which = "Data", skip=8)
+```
+Clean 2018-2019 column names
+```{r}
+AR2018_19 <- janitor::clean_names(AR2018_19)
+```
+Create 2018-2019 table
+```{r}
+table2018 <- AR2018_19 %>%
+  select(district_name, district_percent_homeless, district_lea) %>%
+  arrange(desc(district_percent_homeless))
+```
+Rename column
+```{r}
+colnames(table2018)[2] <- "Pct_Homeless_2018"
+```
+Join tables
+```{r}
+AR2009_19 <- table2018 %>% 
+  inner_join(table2009, by=("district_lea"))
+```
+Use anti_join to determine the lost records
+```{r}
+leftout <- table2009 %>% 
+  anti_join(table2018, by=("district_lea"))
+```
+Load Data
+```{r}
+School_Address <- rio::import("https://github.com/profrobwells/HomelessSP2020/blob/master/Data/SDI%20Districts%20Printed-02-26-2020-11_38_05.xlsx?raw=true", skip =1)
+```
+Convert School address LEA to numeric and match
+```{r}
+School_Address$LEA <- as.numeric(School_Address$LEA)
+colnames(AR2009_19)[3] <- "LEA"
+AR2009_19$LEA <- as.numeric(AR2009_19$LEA)
+```
+Now we join School_Address to table2009_19
+```{r}
+abc <- School_Address %>% 
+  select(LEA, Name, Address) %>% 
+  inner_join(AR2009_19, by="LEA")
+```
+Form new table
+```{r}
+Addresses <- abc %>%
+  select(LEA, district_name.x, Address, Pct_Homeless_2018, Pct_Homeless_2009)
+glimpse(Addresses)
+```
+
+Rename columns
+```{r}
+colnames(Addresses)[2] <- "district_name"
+```
+
+```{r}
+ARaddresses <- Addresses %>% 
+  mutate(difference = Pct_Homeless_2018-Pct_Homeless_2009)
+glimpse(ARaddresses)
+colnames(ARaddresses)[6] <- "Pct_Chg"
+```
+
+write.csv(ARaddresses, "ARaddresses.csv")
