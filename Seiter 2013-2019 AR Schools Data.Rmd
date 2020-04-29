@@ -1,0 +1,103 @@
+---
+title: "2013-2019 Homeless Children Map"
+author: "Seiter"
+date: "4/28/2020"
+output: html_document
+---
+ 
+```{r}
+library("rio")
+library("janitor")
+library("tidyverse")
+library("lubridate")
+```
+Load 2013-2014 Data
+```{r include=FALSE}
+AR2013_14 <- rio::import("https://github.com/profrobwells/HomelessSP2020/blob/master/Data/2013-2014-demographics-data-for-districts-2.xlsx?raw=true", which = "Data", skip=8)
+```
+Clean up column names so they are R friendly
+```{r}
+AR2013_14 <- janitor::clean_names(AR2013_14)
+```
+Create 2013-2014 table with only relevant columns
+```{r}
+table2013 <- AR2013_14 %>%
+  select(district_name, district_percent_homeless, district_lea) %>%
+  arrange(desc(district_percent_homeless))
+```
+Rename column
+```{r}
+colnames(table2013)[2] <- "Pct_Homeless_2013"
+```
+Load 2018-2019 Data
+```{r}
+AR2018_19 <- rio::import("https://github.com/profrobwells/HomelessSP2020/blob/master/Data/Homeless_Children/2018-2019-demographic-data-for-districts.xlsx?raw=true", which = "Data", skip=8)
+```
+Clean 2018-2019 column names
+```{r}
+AR2018_19 <- janitor::clean_names(AR2018_19)
+```
+Create 2018-2019 table
+```{r}
+table2018 <- AR2018_19 %>%
+  select(district_name, district_percent_homeless, district_lea) %>%
+  arrange(desc(district_percent_homeless))
+```
+Rename column
+```{r}
+colnames(table2018)[2] <- "Pct_Homeless_2018"
+```
+Join tables
+```{r}
+AR2013_19 <- table2018 %>% 
+  inner_join(table2013, by=("district_lea"))
+```
+Use anti_join to determine the lost records
+```{r}
+leftout <- table2013 %>% 
+  anti_join(table2018, by=("district_lea"))
+```
+Load Data
+```{r}
+School_Address <- rio::import("https://github.com/profrobwells/HomelessSP2020/blob/master/Data/SDI%20Districts%20Printed-02-26-2020-11_38_05.xlsx?raw=true", skip =1)
+```
+Convert School address LEA to numeric and match
+```{r}
+School_Address$LEA <- as.numeric(School_Address$LEA)
+colnames(AR2013_19)[3] <- "LEA"
+AR2013_19$LEA <- as.numeric(AR2013_19$LEA)
+```
+Now we join School_Address to table2009_19
+```{r}
+abc <- School_Address %>% 
+  select(LEA, Name, Address) %>% 
+  inner_join(AR2013_19, by="LEA")
+```
+Use anti_join to determine the lost records
+```{r}
+leftout2 <- School_Address %>% 
+  select(LEA, Name, Address) %>% 
+  anti_join(AR2013_19, by="LEA")
+```
+
+Form new table
+```{r}
+Addresses <- abc %>%
+  select(LEA, district_name.x, Address, Pct_Homeless_2018, Pct_Homeless_2013)
+glimpse(Addresses)
+```
+
+Rename columns
+```{r}
+colnames(Addresses)[2] <- "district_name"
+```
+
+Calculate percent change in homelessness from 2013 to 2019
+```{r}
+ARaddresses <- Addresses %>% 
+  mutate(PctChg = (Pct_Homeless_2018-Pct_Homeless_2013)/Pct_Homeless_2013) 
+colnames(ARaddresses)[6] <- "Pct_Chg"
+glimpse(ARaddresses)
+```
+write.csv(ARaddresses, "2013ARaddresses.csv")
+
